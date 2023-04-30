@@ -182,27 +182,25 @@ function __decodeD_WSETP (data: string, wrkr: any) {
                 return new Promise((resolve) => {
                     var fcid = __uuid__()
                     var wsetp_str = `F_WSETP1.0;EV=CBC_${cbfIndex}_${fcid};DL=${args.length};${__encode_data_only_fwsetp__(args, _fhooks)}`
-                    if (wrkr) {
-                        wrkr.addEventListener('message', function (ev: MessageEvent<string>) {
-                            const msg = ev.data
-                            if (msg.startsWith('R')) {
-                                const parsed = __decodeR_WSETP(msg, wrkr)
-                                if (parsed.fcid === fcid) {
-                                    resolve(parsed.returnValue)
+                    var handler = function (ev: MessageEvent<string>) {
+                        const msg = ev.data
+                        if (msg.startsWith('R')) {
+                            const parsed = __decodeR_WSETP(msg, wrkr)
+                            if (parsed.fcid === fcid) {
+                                resolve(parsed.returnValue)
+                                if (wrkr) {
+                                    wrkr.removeEventListener('message',  handler)
+                                } else {
+                                    self.removeEventListener('message', handler)
                                 }
                             }
-                        })
+                        }
+                    }
+                    if (wrkr) {
+                        wrkr.addEventListener('message', handler)
                         wrkr.postMessage(wsetp_str)
                     } else {
-                        self.addEventListener('message', function (ev: MessageEvent<string>) {
-                            const msg = ev.data
-                            if (msg.startsWith('R')) {
-                                const parsed = __decodeR_WSETP(msg, wrkr)
-                                if (parsed.fcid === fcid) {
-                                    resolve(parsed.returnValue)
-                                }
-                            }
-                        })
+                        self.addEventListener('message', handler)
                         postMessage(wsetp_str)
                     }
                 })

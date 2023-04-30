@@ -4,22 +4,16 @@ declare global {
     }
 }
 
-/**
- * Creates a WebWorker
- * @param fn WebWorker function to be executed in seperate thread
- * @returns {SmartWorker} SmartWorker object
- */
-function smart<F extends (worker: WorkerSelf) => any>(fn: F): SmartWorker;
-/**
- * Creates a WebWorker
- * @param fn WebWorker function to be executed in seperate thread
- * @param args Arguments that will be passed into the worker function
- * @returns {SmartWorker} SmartWorker object
- */
-function smart<F extends (worker: WorkerSelf, ...args: any[]) => any>(fn: F, args: Parameters<F>): SmartWorker;
+type Tail<T extends any[]> = ((...args: T) => any) extends ((arg1: any, ...rest: infer R) => any) ? R : never;
 
-/** Code **/
-function smart(fn: Function, args: any[] = []): SmartWorker {
+/**
+ * Creates a WebWorker
+ * @param fn WebWorker function to be executed in separate thread
+ * @returns {SmartWorker} SmartWorker object
+ */
+function smart<F extends (worker: WorkerSelf, ...args: any[]) => any>(fn: F, args: Tail<Parameters<F>>): SmartWorker;
+
+function smart<F extends Function>(fn: F, args: any[] = []): SmartWorker {
     if (typeof (Worker) !== 'undefined') {
         const url = funcToDataUrl(fn, args)
         let worker: Worker | null = null
@@ -351,9 +345,6 @@ var __WorkerSelf__={
     terminate: function(){postMessage("D_WSETP1.0;EV=%24WSETP_TERMINATE;DL=0;");return __WorkerSelf__},
     emit: __emit_ev__,
     on: __listen_ev__,
-    document: function(){
-        // TODO:
-    },
     fn: function(name, func) {
         __fns__[name] = func;
         return __WorkerSelf__;
@@ -419,10 +410,6 @@ type SmartWorker = {
     }
 }
 
-type PseudoDocument = {
-    // TODO:
-}
-
 type WorkerSelf = {
     /**
      * Terminates the Worker
@@ -447,11 +434,6 @@ type WorkerSelf = {
      * @param handler Event handler
      */
     on(event: string, handler: Function): WorkerSelf,
-
-    /**
-     * Returns the document of the main dom, so that you can manipulate it
-     */
-    document(): PseudoDocument
 
     /**
      * Defines a function that can be executed by the main thread in the worker

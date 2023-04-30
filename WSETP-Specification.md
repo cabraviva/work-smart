@@ -28,7 +28,7 @@ which would just mean:
 The event type identifier indicates the type of the event
 |ETI|Meaning|
 |---|-------|
-|D|Data|
+|D|Data / Event dispatch|
 |F|Callback function call|
 |C|Function call|
 |R|Function return value|

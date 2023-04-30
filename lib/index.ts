@@ -9,9 +9,10 @@ type Tail<T extends any[]> = ((...args: T) => any) extends ((arg1: any, ...rest:
 /**
  * Creates a WebWorker
  * @param fn WebWorker function to be executed in separate thread
+ * @param args Arguments to pass in the WebWorker function
  * @returns {SmartWorker} SmartWorker object
  */
-function smart<F extends (worker: WorkerSelf, ...args: any[]) => any>(fn: F, args: Tail<Parameters<F>>): SmartWorker;
+function smart<F extends (worker: WorkerSelf, ...args: any[]) => any>(fn: F, args?: Tail<Parameters<F>>): SmartWorker;
 
 function smart<F extends Function>(fn: F, args: any[] = []): SmartWorker {
     if (typeof (Worker) !== 'undefined') {

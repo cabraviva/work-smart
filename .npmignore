@@ -2,3 +2,7 @@ nautus/
 lib/
 .dccache
 nautus
+.gitattributes
+.gitignore
+dist/playground.html
+WSETP-Specification.md

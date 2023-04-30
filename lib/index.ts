@@ -40,7 +40,7 @@ function smart(fn: Function, args: any[] = []): SmartWorker {
                     // Handles callback functions
                     if (msg.startsWith('F')) {
                         // Callback function
-                        const parsed = __decodeF_WSETP(msg)
+                        const parsed = __decodeF_WSETP(msg, worker)
                         const fn = window.__func_hooks__[parsed.fIndex]
                         const rv = fn(...parsed.args)
                         if (rv instanceof Promise) {
@@ -64,11 +64,8 @@ function smart(fn: Function, args: any[] = []): SmartWorker {
                                 rv
                             ))
                         }
-                    } else if (msg.startsWith('R')) {
-                        // Received return value
-                        // TODO:
                     } else if (msg.startsWith('D')) {
-                        const parsed = __decodeD_WSETP(msg)
+                        const parsed = __decodeD_WSETP(msg, worker)
                         if (parsed.eventName === '$WSETP_TERMINATE') {
                             worker?.terminate()
                         }
@@ -89,7 +86,7 @@ function smart(fn: Function, args: any[] = []): SmartWorker {
             on(event, handler) {
                 const el = ({ data: msg }: MessageEvent<string>) => {
                     if (msg.startsWith('D')) {
-                        const parsed = __decodeD_WSETP(msg)
+                        const parsed = __decodeD_WSETP(msg, worker)
                         // Normal event message
                         if (event === parsed.eventName) {
                             handler(...parsed.data)
@@ -103,8 +100,17 @@ function smart(fn: Function, args: any[] = []): SmartWorker {
             fn (name) {
                 return {
                     call (...args) {
-                        return new Promise((resolve, reject) => {
-                            // TODO:
+                        return new Promise((resolve) => {
+                            const fcid = __uuid__()
+                            worker?.addEventListener('message', ({ data }) => {
+                                if (data.startsWith('R')) {
+                                    const parsed = __decodeR_WSETP(data, worker)
+                                    if (parsed.fcid === fcid) {
+                                        resolve(parsed.returnValue)
+                                    }
+                                }
+                            })
+                            worker?.postMessage(`C_WSETP1.0;EV=${encodeURIComponent(name)}_${fcid};DL=${args.length};${__encode_data_only_fwsetp__(args, window.__func_hooks__)}`)
                         })
                     }
                 }
@@ -132,14 +138,14 @@ function __encode_data_only_fwsetp__(doarray: any[], _fhooks: any[]) {
     return doarray.map(__serializer).map((e, i) => `D${i}=${encodeURIComponent(e)}`).join(';')
 }
 
-function __decodeD_WSETP (data: string) {
-    function __uuid__() {
-        // @ts-expect-error
-        return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
-            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-        ) + '-' + Date.now()
-    }
+function __uuid__() {
+    // @ts-expect-error
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    ) + '-' + Date.now()
+}
 
+function __decodeD_WSETP (data: string, wrkr: any) {
     const segments = data.split(';').filter(e => e !== '')
     const versionHeader = segments[0]
     const eventName = decodeURIComponent(segments[1].split('=')[1])
@@ -149,12 +155,14 @@ function __decodeD_WSETP (data: string) {
     const datav: any[] = []
 
     let _fhooks: any[] = []
+    let context: 'worker' | 'client' = 'worker'
     try {
         // @ts-expect-error
         _fhooks = __func_hooks__
     } catch {
         if (!window.__func_hooks__) window.__func_hooks__ = []
         _fhooks = window.__func_hooks__
+        context = 'client'
     }
     if (!(_fhooks instanceof Array)) _fhooks = []
 
@@ -170,10 +178,33 @@ function __decodeD_WSETP (data: string) {
             const cbfIndex = parseInt(rawData.substring(6))
             datav[index] = function () {
                 var args = Array.from(arguments)
-                return [
-                    'SEND_CALLBACK_WSETP',
-                    `F_WSETP1.0;EV=CBC_${cbfIndex}_${__uuid__()};DL=${args.length};${__encode_data_only_fwsetp__(args, _fhooks)}`
-                ]
+                return new Promise((resolve) => {
+                    var fcid = __uuid__()
+                    var wsetp_str = `F_WSETP1.0;EV=CBC_${cbfIndex}_${fcid};DL=${args.length};${__encode_data_only_fwsetp__(args, _fhooks)}`
+                    if (wrkr) {
+                        wrkr.addEventListener('message', function (ev: MessageEvent<string>) {
+                            const msg = ev.data
+                            if (msg.startsWith('R')) {
+                                const parsed = __decodeR_WSETP(msg, wrkr)
+                                if (parsed.fcid === fcid) {
+                                    resolve(parsed.returnValue)
+                                }
+                            }
+                        })
+                        wrkr.postMessage(wsetp_str)
+                    } else {
+                        self.addEventListener('message', function (ev: MessageEvent<string>) {
+                            const msg = ev.data
+                            if (msg.startsWith('R')) {
+                                const parsed = __decodeR_WSETP(msg, wrkr)
+                                if (parsed.fcid === fcid) {
+                                    resolve(parsed.returnValue)
+                                }
+                            }
+                        })
+                        postMessage(wsetp_str)
+                    }
+                })
             }
         } else {
             datav[index] = JSON.parse(rawData)
@@ -189,8 +220,8 @@ function __decodeD_WSETP (data: string) {
     }
 }
 
-function __decodeF_WSETP (data: string) {
-    const decoded = __decodeD_WSETP(data)
+function __decodeF_WSETP (data: string, wrkr: any) {
+    const decoded = __decodeD_WSETP(data, wrkr)
     const fIndex = parseInt(decoded.eventName.split('_')[1])
     const fcid = decoded.eventName.split('_')[2]
 
@@ -202,7 +233,7 @@ function __decodeF_WSETP (data: string) {
 }
 
 function __decodeC_WSETP (data: string) {
-    const decoded = __decodeD_WSETP(data)
+    const decoded = __decodeD_WSETP(data, null)
     const fname = decoded.eventName.split('_')[0]
     const fcid = decoded.eventName.split('_')[1]
 
@@ -213,8 +244,8 @@ function __decodeC_WSETP (data: string) {
     }
 }
 
-function __decodeR_WSETP (data: string) {
-    const decoded = __decodeD_WSETP(data)
+function __decodeR_WSETP (data: string, wrkr: any) {
+    const decoded = __decodeD_WSETP(data, wrkr)
     const callETI = decoded.eventName.split('_')[0]
     const fcid = decoded.eventName.split('_')[1]
 
@@ -255,7 +286,7 @@ function funcToDataUrl(func: Function, data?: any[]) {
     if (!(data instanceof Array)) data = []
 
     const workerSelfCode = `var __func_hooks__=[];var __fns__={};
-${__encode_data_only_fwsetp__};${__decodeD_WSETP};${__decodeF_WSETP};
+${__uuid__};${__encode_data_only_fwsetp__};${__decodeD_WSETP};${__decodeF_WSETP};
 ${__decodeC_WSETP};${__decodeR_WSETP};${__createReturnValue_WSETP};${__encode_D_WSETP};
 function __emit_ev__(evname){
     var data=Array.from(arguments).slice(1);
@@ -266,7 +297,7 @@ function __listen_ev__(evname, handler){
     self.addEventListener('message', function (ev) {
         var msg = ev.data;
         if (msg.startsWith('D')) {
-            const parsed = __decodeD_WSETP(msg);
+            const parsed = __decodeD_WSETP(msg, null);
             if (evname === parsed.eventName) {
                 handler(...parsed.data);
             }
@@ -274,6 +305,48 @@ function __listen_ev__(evname, handler){
     });
     return __WorkerSelf__;
 };
+self.addEventListener('message', function (ev) {
+    var msg = ev.data;
+    if (msg.startsWith('F')) {
+        const parsed = __decodeF_WSETP(msg, null)
+        const fn = __func_hooks__[parsed.fIndex]
+        const rv = fn(...parsed.args)
+        if (rv instanceof Promise) {
+            rv.then(rrv => {
+                postMessage(__createReturnValue_WSETP(
+                    'F',
+                    parsed.fcid,
+                    rrv
+                ))
+            }).catch(rrv => {
+                postMessage(__createReturnValue_WSETP(
+                    'F',
+                    parsed.fcid,
+                    rrv
+                ))
+            })
+        } else {
+            postMessage(__createReturnValue_WSETP(
+                'F',
+                parsed.fcid,
+                rv
+            ))
+        }
+    } else if (msg.startsWith('C')) {
+        const parsed = __decodeC_WSETP(msg)
+        const fn = __fns__[parsed.fname]
+        const rv = fn(...parsed.args)
+        if (rv instanceof Promise) {
+            rv.then((rrv) => {
+                postMessage(__createReturnValue_WSETP('C', parsed.fcid, rrv))
+            }).catch((rrv) => {
+                postMessage(__createReturnValue_WSETP('C', parsed.fcid, rrv))
+            })
+        } else {
+            postMessage(__createReturnValue_WSETP('C', parsed.fcid, rv))
+        }
+    }
+});
 var __WorkerSelf__={
     terminate: function(){postMessage("D_WSETP1.0;EV=%24WSETP_TERMINATE;DL=0;");return __WorkerSelf__},
     emit: __emit_ev__,

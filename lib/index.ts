@@ -117,6 +117,12 @@ function smart<F extends Function>(fn: F, args: any[] = []): SmartWorker {
     }
 }
 
+function JSONParse (data: string): string | undefined {
+    if (data === undefined) return data
+    if (data === 'undefined') return undefined
+    return JSON.parse(data)
+}
+
 if (!window.__func_hooks__) window.__func_hooks__ = []
 
 function __encode_data_only_fwsetp__(doarray: any[], _fhooks: any[]) {
@@ -202,7 +208,7 @@ function __decodeD_WSETP (data: string, wrkr: any) {
                 })
             }
         } else {
-            datav[index] = JSON.parse(rawData)
+            datav[index] = JSONParse(rawData)
         }
     })
 
@@ -280,9 +286,7 @@ function __encode_D_WSETP (ev: string, data: any[]) {
 function funcToDataUrl(func: Function, data?: any[]) {
     if (!(data instanceof Array)) data = []
 
-    const workerSelfCode = `var __func_hooks__=[];var __fns__={};
-${__uuid__};${__encode_data_only_fwsetp__};${__decodeD_WSETP};${__decodeF_WSETP};
-${__decodeC_WSETP};${__decodeR_WSETP};${__createReturnValue_WSETP};${__encode_D_WSETP};
+    const workerSelfCode = `var __func_hooks__=[];var __fns__={};${JSONParse};${__uuid__};${__encode_data_only_fwsetp__};${__decodeD_WSETP};${__decodeF_WSETP};${__decodeC_WSETP};${__decodeR_WSETP};${__createReturnValue_WSETP};${__encode_D_WSETP};
 function __emit_ev__(evname){
     var data=Array.from(arguments).slice(1);
     postMessage(__encode_D_WSETP(evname, data))

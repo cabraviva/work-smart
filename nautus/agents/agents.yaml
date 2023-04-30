@@ -7,7 +7,4 @@
 # Here you can define which agent watches which tank, just take a look at the example
 # and add your code when needed
 agents:
-  DefaultAgent:
-    watches:
-      tanks:
-        - main
+  

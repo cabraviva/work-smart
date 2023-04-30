@@ -31,8 +31,11 @@ module.exports = async (cmd, os, info, warn, error, exit, script, spawn, modules
         exit(await spawn('pkg', ['.']))
     */
 
-    return error('No build script defined, please edit ./nautus/scripts/@Build.js')
+    
 
     /* PLEASE DON'T CHANGE METHOD NAMES, AS IT MIGHT BE REQUIRED BY RUNTIMES */
     /* PLEASE DON'T DELETE OR MODIFY THIS COMMENT, IT WILL BE USED TO INJECT SCRIPTS BY KELP */
+// Injected by kelp:
+exit(await spawn(modules.path.join(process.cwd(), 'node_modules/.bin/tsc'), []))
+
 }
